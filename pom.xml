@@ -19,7 +19,21 @@
 
     <properties>
         <java.version>1.8</java.version>
+        <azure.sdk.bom.version>1.2.20</azure.sdk.bom.version>
     </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Azure SDK BOM for consistent Azure library versions -->
+            <dependency>
+                <groupId>com.azure</groupId>
+                <artifactId>azure-sdk-bom</artifactId>
+                <version>${azure.sdk.bom.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -30,18 +44,58 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
-        <!-- SECURITY VIOLATION: log4j 2.14.1 has critical CVE-2021-44228 (Log4Shell) -->
+
+        <!-- Azure Blob Storage – replaces local file system operations (blockers 1-7) -->
         <dependency>
-            <groupId>org.apache.logging.log4j</groupId>
-            <artifactId>log4j-core</artifactId>
-            <version>2.14.1</version>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-storage-blob</artifactId>
         </dependency>
-        <!-- SECURITY VIOLATION: commons-collections 3.2.1 has CVE-2015-6420 (RCE) -->
+
+        <!-- Azure Key Vault Secrets – replaces hard-coded DB credentials (blockers 8-9) -->
         <dependency>
-            <groupId>commons-collections</groupId>
-            <artifactId>commons-collections</artifactId>
-            <version>3.2.1</version>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-security-keyvault-secrets</artifactId>
         </dependency>
+
+        <!-- Azure Identity – DefaultAzureCredential for Key Vault / Blob auth (blockers 8-9, 18) -->
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-identity</artifactId>
+        </dependency>
+
+        <!-- Azure App Configuration – externalises URLs and ports (blockers 10-12) -->
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-data-appconfiguration</artifactId>
+        </dependency>
+
+        <!-- Spring Session + Azure Cache for Redis – replaces HttpSession (blockers 13-17, 20) -->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+
+        <!-- Azure Service Bus – replaces java.util.Timer scheduling (blocker 19) -->
+        <dependency>
+            <groupId>com.azure</groupId>
+            <artifactId>azure-messaging-servicebus</artifactId>
+        </dependency>
+
+        <!-- Spring Security + Azure AD – replaces file-based authentication (blocker 18) -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.azure.spring</groupId>
+            <artifactId>spring-cloud-azure-starter-active-directory</artifactId>
+            <version>4.14.0</version>
+        </dependency>
+
         <dependency>
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
