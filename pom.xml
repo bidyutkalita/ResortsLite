@@ -47,6 +47,27 @@
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
         </dependency>
+        <!-- health-check-endpoint: Spring Boot Actuator provides /actuator/health endpoint
+             for container liveness/readiness probes on EKS -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+        <!-- blocker-7 through blocker-16 (cz-java-0063, cz-java-0069): Spring Session with
+             Redis backend to replace in-memory HttpSession with distributed session storage
+             backed by Amazon ElastiCache (Redis) on EKS -->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

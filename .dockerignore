@@ -1,0 +1,60 @@
+# Java / Maven build artifacts
+target/
+*.jar
+*.war
+*.ear
+
+# Maven wrapper (never used in Docker builds)
+mvnw
+mvnw.cmd
+.mvn/
+
+# Gradle wrapper (never used in Docker builds)
+gradlew
+gradlew.bat
+gradle/wrapper/
+.gradle/
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# IDE files
+.idea/
+.vscode/
+*.iml
+*.iws
+*.ipr
+.classpath
+.project
+.settings/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Documentation
+*.md
+docs/
+
+# Test files
+src/test/
+
+# Logs
+*.log
+logs/
+
+# Environment files
+.env
+.env.*
+
+# Docker files (not needed in build context)
+docker-compose*.yml
+Dockerfile*
+
+# Kubernetes manifests
+kubernetes/
+
+# Scripts
+scripts/
