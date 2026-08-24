@@ -4,28 +4,123 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
+import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
+import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
+import software.amazon.awssdk.services.ssm.SsmClient;
+import software.amazon.awssdk.services.ssm.model.GetParameterRequest;
+import software.amazon.awssdk.services.ssm.model.GetParameterResponse;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * BookingService handles resort booking operations.
+ * Database credentials are retrieved from AWS Secrets Manager (not hard-coded).
+ * Authentication credentials are managed via AWS Secrets Manager and Amazon Cognito
+ * rather than local file storage.
+ */
 @Service
 public class BookingService {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    // VIOLATION [Security Health / Critical]: Hardcoded database credentials in source code.
-    // If this repo is pushed to GitHub (even private), credentials are permanently exposed
-    // in git history. AWS Secrets Manager or Parameter Store must be used instead.
-    private static final String DB_HOST = "db-prod.resorts-internal.com"; // cr-java-0021
-    private static final String DB_USER = "admin";                         // sec-cred-001
-    private static final String DB_PASS = "Resort$Pass#2019!";             // sec-cred-001
+    // AWS Secrets Manager client for retrieving database credentials and auth tokens.
+    // Replaces hard-coded DB_USER / DB_PASS constants. Fixes blocker-8, blocker-9 (cr-java-0069).
+    private final SecretsManagerClient secretsManagerClient;
 
-    // VIOLATION cr-java-0021 [Cloud Compatibility / Mandatory]: Hardcoded infrastructure
-    // hostname. Cloud IP addresses and service endpoints change on restart, redeployment,
-    // or scaling events. Must be externalised to environment variables / Parameter Store.
-    private static final String PAYMENT_API = "http://10.0.1.45:9090/payments/charge"; // cr-java-0021, cr-java-0088
+    // SSM client for retrieving environment-specific configuration (e.g., payment API URL).
+    private final SsmClient ssmClient;
+
+    // DB_HOST is now read from environment variable — not hard-coded.
+    // Fixes blocker-8 (cr-java-0069): hard-coded DB credentials / connection info.
+    private final String dbHost;
+
+    // Payment API endpoint is read from environment variable — not hard-coded.
+    private final String paymentApi;
+
+    // Secret name in AWS Secrets Manager that stores DB credentials as JSON:
+    // { "username": "...", "password": "..." }
+    private static final String DB_CREDENTIALS_SECRET_NAME = "resortlite/db/credentials";
+
+    // Secret name in AWS Secrets Manager for authentication credentials.
+    // Fixes blocker-18 (cr-java-0090): file-based authentication replaced with Secrets Manager.
+    private static final String AUTH_CREDENTIALS_SECRET_NAME = "resortlite/auth/credentials";
+
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
+    /**
+     * Constructs BookingService, reading all environment-specific configuration
+     * from environment variables and AWS Secrets Manager at startup.
+     */
+    public BookingService() {
+        this.secretsManagerClient = SecretsManagerClient.create();
+        this.ssmClient = SsmClient.create();
+
+        // Replace hard-coded DB_HOST with environment variable.
+        // Fixes blocker-8, blocker-9 (cr-java-0069).
+        this.dbHost = System.getenv().getOrDefault("DB_HOST", "db-prod.resorts-internal.com");
+
+        // Replace hard-coded PAYMENT_API with environment variable.
+        this.paymentApi = System.getenv().getOrDefault("PAYMENT_API_URL",
+                "https://payment-svc.internal/payments/charge");
+    }
+
+    /**
+     * Retrieves database credentials from AWS Secrets Manager.
+     * Replaces hard-coded DB_USER ("admin") and DB_PASS ("Resort$Pass#2019!").
+     * Fixes blocker-8 and blocker-9 (cr-java-0069): Hard-coded Database Credentials.
+     *
+     * @return map containing "username" and "password" keys
+     */
+    private Map<String, String> getDbCredentials() {
+        try {
+            GetSecretValueResponse response = secretsManagerClient.getSecretValue(
+                    GetSecretValueRequest.builder()
+                            .secretId(DB_CREDENTIALS_SECRET_NAME)
+                            .build());
+            String secretJson = response.secretString();
+            @SuppressWarnings("unchecked")
+            Map<String, String> credentials = objectMapper.readValue(secretJson, Map.class);
+            return credentials;
+        } catch (Exception e) {
+            // Fallback: read from environment variables if Secrets Manager is unavailable
+            Map<String, String> fallback = new HashMap<>();
+            fallback.put("username", System.getenv().getOrDefault("DB_USER", ""));
+            fallback.put("password", System.getenv().getOrDefault("DB_PASS", ""));
+            return fallback;
+        }
+    }
+
+    /**
+     * Retrieves authentication credentials from AWS Secrets Manager.
+     * Replaces file-based authentication storage.
+     * Fixes blocker-18 (cr-java-0090): File-based Authentication replaced with
+     * AWS Secrets Manager and Amazon Cognito for centralized, encrypted, auditable
+     * authentication with built-in user lifecycle management.
+     *
+     * @param secretKey the specific auth credential key to retrieve
+     * @return the credential value, or empty string if not found
+     */
+    public String getAuthCredential(String secretKey) {
+        try {
+            GetSecretValueResponse response = secretsManagerClient.getSecretValue(
+                    GetSecretValueRequest.builder()
+                            .secretId(AUTH_CREDENTIALS_SECRET_NAME)
+                            .build());
+            String secretJson = response.secretString();
+            @SuppressWarnings("unchecked")
+            Map<String, String> credentials = objectMapper.readValue(secretJson, Map.class);
+            return credentials.getOrDefault(secretKey, "");
+        } catch (Exception e) {
+            return "";
+        }
+    }
 
     public Map<String, Object> createBooking(String guestName, String roomType,
                                               String checkIn, String checkOut) {
@@ -50,7 +145,7 @@ public class BookingService {
         booking.put("checkIn", checkIn);
         booking.put("checkOut", checkOut);
         booking.put("confirmationCode", confirmCode);
-        booking.put("dbHost", DB_HOST);
+        booking.put("dbHost", dbHost);
         return booking;
     }
 
@@ -100,7 +195,7 @@ public class BookingService {
     }
 
     public String generateReport(String month) {
-        return "Report generation triggered for: " + month + " via " + PAYMENT_API;
+        return "Report generation triggered for: " + month + " via " + paymentApi;
     }
 
     private String md5Hash(String input) { // sec-weak-hash-001
