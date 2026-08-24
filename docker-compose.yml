@@ -1,0 +1,57 @@
+version: "3.9"
+
+# ============================================================
+# ResortsLite – Application-only Compose file
+# NOTE: External services (DB, Redis, payment, inventory, etc.)
+#       are NOT included here; connect via environment variables.
+# ============================================================
+
+services:
+  resortsLite:
+    image: resortsLite:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: resortsLite-app
+    ports:
+      - "8080:8080"
+    environment:
+      # JVM settings
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
+      # Spring
+      SPRING_PROFILES_ACTIVE: docker
+      SERVER_PORT: "8080"
+      # Paths (mount volumes below)
+      REPORT_BASE_PATH: /reports
+      BACKUP_PATH: /backups/nightly
+      # External service endpoints – override with real values
+      PAYMENT_API_URL: ${PAYMENT_API_URL:-http://payment-service.internal:9090/payments/charge}
+      APP_PAYMENT_ENDPOINT: ${APP_PAYMENT_ENDPOINT:-http://payment-svc.internal:9090/charge}
+      APP_INVENTORY_ENDPOINT: ${APP_INVENTORY_ENDPOINT:-http://inventory-svc.internal:8081/rooms}
+      APP_NOTIFICATION_ENDPOINT: ${APP_NOTIFICATION_ENDPOINT:-http://notify.internal:7070/send}
+      # Redis (external)
+      REDIS_HOST: ${REDIS_HOST:-localhost}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      # Timezone
+      TZ: UTC
+    volumes:
+      - reports-data:/reports
+      - backups-data:/backups/nightly
+      - ./logs:/app/logs
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    networks:
+      - app-network
+
+volumes:
+  reports-data:
+  backups-data:
+
+networks:
+  app-network:
+    driver: bridge

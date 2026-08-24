@@ -1,0 +1,64 @@
+{
+  "family": "resortsLite-task",
+  "requiresCompatibilities": ["FARGATE"],
+  "networkMode": "awsvpc",
+  "cpu": "512",
+  "memory": "1024",
+  "executionRoleArn": "arn:aws:iam::{{ACCOUNT_ID}}:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::{{ACCOUNT_ID}}:role/ecsTaskRole",
+  "containerDefinitions": [
+    {
+      "name": "resortsLite",
+      "image": "{{IMAGE_URI}}",
+      "essential": true,
+      "portMappings": [
+        {
+          "containerPort": 8080,
+          "protocol": "tcp"
+        }
+      ],
+      "environment": [
+        { "name": "SPRING_PROFILES_ACTIVE", "value": "docker" },
+        { "name": "SERVER_PORT",            "value": "8080" },
+        { "name": "TZ",                     "value": "UTC" },
+        { "name": "JAVA_OPTS",              "value": "-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom" },
+        { "name": "REPORT_BASE_PATH",       "value": "/reports" },
+        { "name": "BACKUP_PATH",            "value": "/backups/nightly" },
+        { "name": "PAYMENT_API_URL",        "value": "http://payment-service.internal:9090/payments/charge" },
+        { "name": "APP_PAYMENT_ENDPOINT",   "value": "http://payment-svc.internal:9090/charge" },
+        { "name": "APP_INVENTORY_ENDPOINT", "value": "http://inventory-svc.internal:8081/rooms" },
+        { "name": "APP_NOTIFICATION_ENDPOINT", "value": "http://notify.internal:7070/send" },
+        { "name": "REDIS_HOST",             "value": "localhost" },
+        { "name": "REDIS_PORT",             "value": "6379" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group":         "/ecs/resortsLite",
+          "awslogs-region":        "{{AWS_REGION}}",
+          "awslogs-stream-prefix": "ecs"
+        }
+      },
+      "mountPoints": [
+        {
+          "sourceVolume": "reports-volume",
+          "containerPath": "/reports",
+          "readOnly": false
+        },
+        {
+          "sourceVolume": "backups-volume",
+          "containerPath": "/backups/nightly",
+          "readOnly": false
+        }
+      ]
+    }
+  ],
+  "volumes": [
+    {
+      "name": "reports-volume"
+    },
+    {
+      "name": "backups-volume"
+    }
+  ]
+}

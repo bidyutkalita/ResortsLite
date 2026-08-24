@@ -1,0 +1,56 @@
+# ── Java / Maven ──────────────────────────────────────────
+target/
+*.jar
+*.war
+*.ear
+
+# ── Maven wrapper (NEVER copy into image) ─────────────────
+mvnw
+mvnw.cmd
+.mvn/
+
+# ── Gradle wrapper (NEVER copy into image) ────────────────
+gradlew
+gradlew.bat
+gradle/wrapper/
+.gradle/
+
+# ── Version control ───────────────────────────────────────
+.git/
+.gitignore
+.gitattributes
+
+# ── IDE / editor artefacts ────────────────────────────────
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.classpath
+.project
+.settings/
+*.swp
+*.swo
+
+# ── OS artefacts ──────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Documentation ─────────────────────────────────────────
+*.md
+docs/
+
+# ── Test artefacts ────────────────────────────────────────
+src/test/
+
+# ── Logs ──────────────────────────────────────────────────
+logs/
+*.log
+
+# ── Docker files (not needed inside image) ────────────────
+docker-compose*.yml
+.dockerignore
+
+# ── Scripts ───────────────────────────────────────────────
+scripts/
