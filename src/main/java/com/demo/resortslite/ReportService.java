@@ -5,8 +5,11 @@ import org.springframework.stereotype.Service;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.util.Date;
+// Updated from java.util.Date + java.text.SimpleDateFormat (legacy, not thread-safe)
+// to java.time.LocalDateTime + java.time.format.DateTimeFormatter (java.time API, Java 8+,
+// recommended for Java 17 — thread-safe and avoids deprecated Date/Calendar APIs)
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -26,6 +29,10 @@ public class ReportService {
     // Container orchestration (ECS / EKS) dynamically assigns ports. Hardcoded ports prevent
     // dynamic port binding required for modern container deployment and service discovery.
     private static final int SERVER_PORT = 8080; // czr-port-001
+
+    // DateTimeFormatter is thread-safe (unlike SimpleDateFormat) and works with java.time API
+    private static final DateTimeFormatter TIMESTAMP_FORMATTER =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public Map<String, Object> generateMonthlyReport(String month, String year) {
         String fileName = "resort_report_" + month + "_" + year + ".csv";
@@ -67,7 +74,10 @@ public class ReportService {
     }
 
     public Map<String, Object> getSystemInfo() { // doc-missing-001
-        String timestamp = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(new Date());
+        // Updated: replaced new SimpleDateFormat("...").format(new Date()) with
+        // LocalDateTime.now().format(DateTimeFormatter) — java.time API is the
+        // recommended approach in Java 17; java.util.Date is legacy and deprecated for new code.
+        String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);
         Map<String, Object> info = new HashMap<>();
         info.put("reportPath", REPORT_BASE_PATH);  // czr-java-001
         info.put("backupPath", BACKUP_PATH);        // czr-java-001

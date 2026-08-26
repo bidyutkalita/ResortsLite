@@ -8,17 +8,22 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.7.18</version>
+        <!-- Updated from 2.7.18 to 3.2.5 for Java 17 compatibility.
+             Spring Boot 3.x requires Java 17+ and migrates from javax.* to jakarta.* -->
+        <version>3.2.5</version>
     </parent>
 
     <groupId>com.demo</groupId>
     <artifactId>resortsLite</artifactId>
     <version>1.0.0</version>
     <name>ResortsLite</name>
-    <description>Legacy resort booking demo — Java 8 / Spring Boot 2.7.x</description>
+    <description>Resort booking demo — Java 17 / Spring Boot 3.2.x</description>
 
     <properties>
-        <java.version>1.8</java.version>
+        <!-- Updated from 1.8 to 17 for Java 17 target -->
+        <java.version>17</java.version>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
     </properties>
 
     <dependencies>
@@ -30,17 +35,18 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
-        <!-- SECURITY VIOLATION: log4j 2.14.1 has critical CVE-2021-44228 (Log4Shell) -->
+        <!-- Updated log4j-core from 2.14.1 (CVE-2021-44228 Log4Shell) to 2.21.1 (patched).
+             Spring Boot 3.x BOM manages log4j versions; explicit version pinned for safety. -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
-            <version>2.14.1</version>
+            <version>2.21.1</version>
         </dependency>
-        <!-- SECURITY VIOLATION: commons-collections 3.2.1 has CVE-2015-6420 (RCE) -->
+        <!-- Updated commons-collections from 3.2.1 (CVE-2015-6420 RCE) to 3.2.2 (patched) -->
         <dependency>
             <groupId>commons-collections</groupId>
             <artifactId>commons-collections</artifactId>
-            <version>3.2.1</version>
+            <version>3.2.2</version>
         </dependency>
         <dependency>
             <groupId>com.h2database</groupId>
@@ -51,6 +57,25 @@
 
     <build>
         <plugins>
+            <!-- Updated maven-compiler-plugin to 3.11.0 for Java 17 compatibility -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.11.0</version>
+                <configuration>
+                    <source>17</source>
+                    <target>17</target>
+                    <release>17</release>
+                </configuration>
+            </plugin>
+            <!-- Added maven-surefire-plugin 3.1.2 for Java 17 / JUnit 5 compatibility.
+                 Without an explicit version, Maven defaults to an older Surefire that does
+                 not support the JUnit Platform launcher required by JUnit 5 on Java 17. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.1.2</version>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

@@ -3,7 +3,10 @@ package com.demo.resortslite;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
-import javax.servlet.http.HttpSession;
+// Updated from javax.servlet.http.HttpSession to jakarta.servlet.http.HttpSession
+// Spring Boot 3.x / Jakarta EE 10 migrated all javax.* packages to jakarta.*
+// javax.servlet is removed in Java 17 + Spring Boot 3.x — must use jakarta.servlet
+import jakarta.servlet.http.HttpSession;
 import java.util.HashMap;
 import java.util.Map;
 
