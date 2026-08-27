@@ -1,0 +1,6 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+ResortsLite,com.demo.resortslite,BookingService.RoomType,0,52,0,4,0,5,0,4,0,2
+ResortsLite,com.demo.resortslite,BookingService,3,247,0,17,2,47,0,18,0,7
+ResortsLite,com.demo.resortslite,ResortsLiteApplication,5,3,0,0,2,1,1,1,1,1
+ResortsLite,com.demo.resortslite,BookingController,0,96,0,0,0,20,0,5,0,5
+ResortsLite,com.demo.resortslite,ReportService,0,95,0,2,0,26,0,6,0,5

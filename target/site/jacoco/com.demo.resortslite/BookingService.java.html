@@ -1,0 +1,185 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BookingService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ResortsLite</a> &gt; <a href="index.source.html" class="el_package">com.demo.resortslite</a> &gt; <span class="el_source">BookingService.java</span></div><h1>BookingService.java</h1><pre class="source lang-java linenums">package com.demo.resortslite;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.security.MessageDigest;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
+@Service
+<span class="fc" id="L14">public class BookingService {</span>
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    // Externalised to environment variable via application.properties (cr-java-0021, cr-java-0088).
+    // No credentials or infrastructure hostnames are stored in source code (sec-cred-001).
+    @Value(&quot;${app.payment.endpoint}&quot;)
+    private String paymentApi;
+
+    /**
+     * Creates a new booking record in the PostgreSQL database.
+     *
+     * &lt;p&gt;Uses a parameterised JDBC query to prevent SQL injection (sql-inject-001).
+     * All user-supplied values are passed as bind parameters, never concatenated
+     * into the SQL string.&lt;/p&gt;
+     *
+     * @param guestName  name of the guest
+     * @param roomType   room category (STANDARD, DELUXE, SUITE, VILLA)
+     * @param checkIn    check-in date string (ISO-8601 recommended)
+     * @param checkOut   check-out date string (ISO-8601 recommended)
+     * @return map containing booking details and a SHA-256 confirmation code
+     */
+    public Map&lt;String, Object&gt; createBooking(String guestName, String roomType,
+                                              String checkIn, String checkOut) {
+<span class="fc" id="L39">        String bookingId = &quot;BK-&quot; + UUID.randomUUID().toString().substring(0, 8).toUpperCase();</span>
+
+        // Parameterised query — bind variables prevent SQL injection (sql-inject-001).
+        // PostgreSQL-compatible INSERT using positional '?' placeholders via JdbcTemplate.
+<span class="fc" id="L43">        String sql = &quot;INSERT INTO bookings (id, guest, room, checkin, checkout) VALUES (?, ?, ?, ?, ?)&quot;;</span>
+<span class="fc" id="L44">        jdbcTemplate.update(sql, bookingId, guestName, roomType, checkIn, checkOut);</span>
+
+        // SHA-256 confirmation code (replaces broken MD5 — sec-weak-hash-001).
+<span class="fc" id="L47">        String confirmCode = sha256Hash(bookingId + guestName);</span>
+
+<span class="fc" id="L49">        Map&lt;String, Object&gt; booking = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L50">        booking.put(&quot;bookingId&quot;, bookingId);</span>
+<span class="fc" id="L51">        booking.put(&quot;guestName&quot;, guestName);</span>
+<span class="fc" id="L52">        booking.put(&quot;roomType&quot;, roomType);</span>
+<span class="fc" id="L53">        booking.put(&quot;checkIn&quot;, checkIn);</span>
+<span class="fc" id="L54">        booking.put(&quot;checkOut&quot;, checkOut);</span>
+<span class="fc" id="L55">        booking.put(&quot;confirmationCode&quot;, confirmCode);</span>
+<span class="fc" id="L56">        return booking;</span>
+    }
+
+    /**
+     * Retrieves a booking record by its identifier.
+     *
+     * &lt;p&gt;Uses a parameterised query to prevent SQL injection (sql-inject-001).&lt;/p&gt;
+     *
+     * @param bookingId the booking identifier to look up
+     * @return map containing booking fields, or an error entry if not found
+     */
+    public Map&lt;String, Object&gt; getBookingById(String bookingId) {
+        // Parameterised query — bookingId is a bind variable, not concatenated (sql-inject-001).
+<span class="fc" id="L69">        String sql = &quot;SELECT * FROM bookings WHERE id = ?&quot;;</span>
+<span class="fc" id="L70">        Map&lt;String, Object&gt; result = new HashMap&lt;&gt;();</span>
+        try {
+<span class="fc" id="L72">            result = jdbcTemplate.queryForMap(sql, bookingId);</span>
+<span class="fc" id="L73">        } catch (Exception e) {</span>
+<span class="fc" id="L74">            result.put(&quot;error&quot;, &quot;Booking not found: &quot; + bookingId);</span>
+<span class="fc" id="L75">        }</span>
+<span class="fc" id="L76">        return result;</span>
+    }
+
+    /**
+     * Calculates the total room price for a stay.
+     *
+     * &lt;p&gt;Refactored from a deeply nested if-else chain to a switch expression
+     * (Java 14+) to reduce cyclomatic complexity below the threshold of 9
+     * (Code Sustainability / High).&lt;/p&gt;
+     *
+     * @param roomType room category
+     * @param nights   number of nights
+     * @param season   pricing season (PEAK, OFF, or standard)
+     * @param loyalty  loyalty tier (GOLD, PLATINUM, DIAMOND, or none)
+     * @return formatted total price string
+     */
+    public String calculateRoomPrice(String roomType, int nights, String season, String loyalty) {
+        // Switch expression reduces cyclomatic complexity vs. chained if-else (dup-logic-001).
+<span class="fc bfc" id="L94" title="All 4 branches covered.">        double basePrice = switch (roomType) {</span>
+<span class="fc" id="L95">            case &quot;DELUXE&quot;   -&gt; 200.0;</span>
+<span class="fc" id="L96">            case &quot;SUITE&quot;    -&gt; 350.0;</span>
+<span class="fc" id="L97">            case &quot;VILLA&quot;    -&gt; 600.0;</span>
+<span class="fc" id="L98">            default         -&gt; 120.0; // STANDARD and unknown types</span>
+        };
+
+<span class="fc bfc" id="L101" title="All 3 branches covered.">        basePrice = switch (season) {</span>
+<span class="fc" id="L102">            case &quot;PEAK&quot; -&gt; basePrice * 1.5;</span>
+<span class="fc" id="L103">            case &quot;OFF&quot;  -&gt; basePrice * 0.8;</span>
+<span class="fc" id="L104">            default     -&gt; basePrice;</span>
+        };
+
+<span class="fc bfc" id="L107" title="All 4 branches covered.">        basePrice = switch (loyalty) {</span>
+<span class="fc" id="L108">            case &quot;GOLD&quot;     -&gt; basePrice * 0.9;</span>
+<span class="fc" id="L109">            case &quot;PLATINUM&quot; -&gt; basePrice * 0.8;</span>
+<span class="fc" id="L110">            case &quot;DIAMOND&quot;  -&gt; basePrice * 0.7;</span>
+<span class="fc" id="L111">            default         -&gt; basePrice;</span>
+        };
+
+        // Long-stay discount: 14+ nights takes priority over 7+ nights.
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        if (nights &gt;= 14) {</span>
+<span class="fc" id="L116">            basePrice = basePrice * 0.90;</span>
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        } else if (nights &gt;= 7) {</span>
+<span class="fc" id="L118">            basePrice = basePrice * 0.95;</span>
+        }
+
+<span class="fc" id="L121">        double total = basePrice * nights;</span>
+<span class="fc" id="L122">        return String.format(&quot;%.2f&quot;, total);</span>
+    }
+
+    /**
+     * Checks whether a room type is valid and available for booking.
+     *
+     * &lt;p&gt;Validation is centralised here and delegates to {@link RoomType} to
+     * eliminate duplicated validation logic (dup-logic-001).&lt;/p&gt;
+     *
+     * @param roomType room category string
+     * @return {@code true} if the room type is recognised; {@code false} otherwise
+     */
+    public boolean isRoomAvailable(String roomType) {
+<span class="fc" id="L135">        return RoomType.isValid(roomType);</span>
+    }
+
+    /**
+     * Triggers report generation for the given month.
+     *
+     * @param month month identifier (e.g. &quot;2024-03&quot;)
+     * @return status message
+     */
+    public String generateReport(String month) {
+<span class="fc" id="L145">        return &quot;Report generation triggered for: &quot; + month + &quot; via &quot; + paymentApi;</span>
+    }
+
+    /**
+     * Computes a SHA-256 hex digest of the given input string.
+     *
+     * &lt;p&gt;Replaces the previously used MD5 algorithm (sec-weak-hash-001).
+     * SHA-256 is cryptographically secure and recommended by NIST SP 800-107.&lt;/p&gt;
+     *
+     * @param input string to hash
+     * @return lowercase hex-encoded SHA-256 digest, or the original input on error
+     */
+    private String sha256Hash(String input) {
+        try {
+<span class="fc" id="L159">            MessageDigest md = MessageDigest.getInstance(&quot;SHA-256&quot;);</span>
+<span class="fc" id="L160">            byte[] hash = md.digest(input.getBytes(java.nio.charset.StandardCharsets.UTF_8));</span>
+<span class="fc" id="L161">            StringBuilder sb = new StringBuilder();</span>
+<span class="fc bfc" id="L162" title="All 2 branches covered.">            for (byte b : hash) { sb.append(String.format(&quot;%02x&quot;, b)); }</span>
+<span class="fc" id="L163">            return sb.toString();</span>
+<span class="nc" id="L164">        } catch (Exception e) {</span>
+<span class="nc" id="L165">            return input;</span>
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // Inner enum — centralises room-type validation to eliminate duplicated
+    // logic across BookingService methods (dup-logic-001).
+    // -----------------------------------------------------------------------
+<span class="fc" id="L173">    enum RoomType {</span>
+<span class="fc" id="L174">        STANDARD, DELUXE, SUITE, VILLA;</span>
+
+        /** Returns {@code true} if {@code value} matches a known room type. */
+        static boolean isValid(String value) {
+<span class="fc bfc" id="L178" title="All 2 branches covered.">            for (RoomType rt : values()) {</span>
+<span class="fc bfc" id="L179" title="All 2 branches covered.">                if (rt.name().equals(value)) return true;</span>
+            }
+<span class="fc" id="L181">            return false;</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

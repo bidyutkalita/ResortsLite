@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BookingController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ResortsLite</a> &gt; <a href="index.source.html" class="el_package">com.demo.resortslite</a> &gt; <span class="el_source">BookingController.java</span></div><h1>BookingController.java</h1><pre class="source lang-java linenums">package com.demo.resortslite;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.bind.annotation.*;
+
+// Spring Boot 3.x / Java 17 uses Jakarta EE 10 (jakarta.*) instead of javax.*
+import jakarta.servlet.http.HttpSession;
+import java.util.HashMap;
+import java.util.Map;
+
+@RestController
+@RequestMapping(&quot;/api/bookings&quot;)
+<span class="fc" id="L14">public class BookingController {</span>
+
+    @Autowired
+    private BookingService bookingService;
+
+    // Externalised to environment variable via application.properties (cr-java-0021, cr-java-0088).
+    @Value(&quot;${app.inventory.endpoint}&quot;)
+    private String inventoryEndpoint;
+
+    // Externalised to environment variable via application.properties (czr-java-001).
+    @Value(&quot;${app.report.base-path:/tmp/reports/}&quot;)
+    private String reportBasePath;
+
+    // NOTE: The in-memory bookingCache (cr-java-0067) has been removed.
+    // For distributed caching across EC2/ECS/EKS instances, use a shared cache
+    // such as Amazon ElastiCache (Redis) injected via a CacheManager bean.
+
+    /**
+     * Creates a new booking and returns the confirmed booking details.
+     *
+     * &lt;p&gt;Booking state is no longer stored in the HTTP session (cr-java-0065).
+     * AWS ALB distributes requests across instances — session data stored on one
+     * instance is invisible to others. Persistent state must be stored in the
+     * database or a distributed cache (e.g. ElastiCache/Redis).&lt;/p&gt;
+     *
+     * @param guestName guest's full name
+     * @param roomType  room category
+     * @param checkIn   check-in date
+     * @param checkOut  check-out date
+     * @return confirmation response containing booking details
+     */
+    @PostMapping(&quot;/create&quot;)
+    public Map&lt;String, Object&gt; createBooking(
+            @RequestParam String guestName,
+            @RequestParam String roomType,
+            @RequestParam String checkIn,
+            @RequestParam String checkOut) {
+
+<span class="fc" id="L52">        Map&lt;String, Object&gt; booking = bookingService.createBooking(guestName, roomType, checkIn, checkOut);</span>
+
+        // Booking state is persisted to the database — no in-memory session storage (cr-java-0065).
+
+<span class="fc" id="L56">        Map&lt;String, Object&gt; response = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L57">        response.put(&quot;status&quot;, &quot;confirmed&quot;);</span>
+<span class="fc" id="L58">        response.put(&quot;booking&quot;, booking);</span>
+<span class="fc" id="L59">        return response;</span>
+    }
+
+    /**
+     * Returns the current status of a booking by its identifier.
+     *
+     * &lt;p&gt;Guest context is retrieved from the database rather than the HTTP session
+     * (cr-java-0065) to ensure correctness in a horizontally scaled cluster.&lt;/p&gt;
+     *
+     * @param bookingId the booking identifier
+     * @return map containing booking details
+     */
+    @GetMapping(&quot;/status/{bookingId}&quot;)
+    public Map&lt;String, Object&gt; getBookingStatus(@PathVariable String bookingId) {
+<span class="fc" id="L73">        Map&lt;String, Object&gt; result = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L74">        result.put(&quot;bookingId&quot;, bookingId);</span>
+<span class="fc" id="L75">        result.put(&quot;details&quot;, bookingService.getBookingById(bookingId));</span>
+<span class="fc" id="L76">        return result;</span>
+    }
+
+    /**
+     * Checks room availability for the requested room type.
+     *
+     * &lt;p&gt;The inventory service endpoint is read from the {@code app.inventory.endpoint}
+     * property (injected via environment variable {@code INVENTORY_ENDPOINT}).
+     * HTTPS is enforced to comply with cloud security standards (cr-java-0088).&lt;/p&gt;
+     *
+     * @param roomType room category to check
+     * @return availability response including the resolved inventory endpoint
+     */
+    @GetMapping(&quot;/availability&quot;)
+    public Map&lt;String, Object&gt; checkAvailability(@RequestParam String roomType) {
+        // inventoryEndpoint is injected from environment variable — no hardcoded URL (cr-java-0088).
+<span class="fc" id="L92">        Map&lt;String, Object&gt; response = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L93">        response.put(&quot;roomType&quot;, roomType);</span>
+<span class="fc" id="L94">        response.put(&quot;inventoryEndpoint&quot;, inventoryEndpoint);</span>
+<span class="fc" id="L95">        response.put(&quot;available&quot;, bookingService.isRoomAvailable(roomType));</span>
+<span class="fc" id="L96">        return response;</span>
+    }
+
+    /**
+     * Returns the download path for a monthly booking report.
+     *
+     * &lt;p&gt;The report base path is read from the {@code app.report.base-path} property
+     * (injected via environment variable {@code REPORT_BASE_PATH}).
+     * This ensures the path is valid inside Docker containers (czr-java-001).&lt;/p&gt;
+     *
+     * @param month month identifier (e.g. &quot;2024-03&quot;)
+     * @return response containing the resolved report path and generation status
+     */
+    @GetMapping(&quot;/report/download&quot;)
+    public Map&lt;String, Object&gt; downloadReport(@RequestParam String month) {
+        // reportBasePath is injected from environment variable — no hardcoded absolute path (czr-java-001).
+<span class="fc" id="L112">        String reportPath = reportBasePath + month + &quot;_bookings.pdf&quot;;</span>
+
+<span class="fc" id="L114">        Map&lt;String, Object&gt; response = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L115">        response.put(&quot;reportPath&quot;, reportPath);</span>
+<span class="fc" id="L116">        response.put(&quot;message&quot;, bookingService.generateReport(month));</span>
+<span class="fc" id="L117">        return response;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>

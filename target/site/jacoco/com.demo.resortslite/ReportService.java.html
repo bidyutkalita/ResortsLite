@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ReportService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">ResortsLite</a> &gt; <a href="index.source.html" class="el_package">com.demo.resortslite</a> &gt; <span class="el_source">ReportService.java</span></div><h1>ReportService.java</h1><pre class="source lang-java linenums">package com.demo.resortslite;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+// java.time API (Java 8+/17) — thread-safe replacement for legacy java.util.Date + SimpleDateFormat.
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.Map;
+
+@Service
+<span class="fc" id="L16">public class ReportService {</span>
+
+    // Externalised to environment variable via application.properties (czr-java-001).
+    // Defaults to /tmp/reports/ which is available inside Docker containers.
+    // For production, set REPORT_BASE_PATH to an EFS mount or S3-backed path.
+    @Value(&quot;${app.report.base-path:/tmp/reports/}&quot;)
+    private String reportBasePath;
+
+    // Thread-safe, immutable DateTimeFormatter — replaces SimpleDateFormat (not thread-safe).
+<span class="fc" id="L25">    private static final DateTimeFormatter TIMESTAMP_FORMATTER =</span>
+<span class="fc" id="L26">            DateTimeFormatter.ofPattern(&quot;yyyy-MM-dd HH:mm:ss&quot;);</span>
+
+    /**
+     * Generates a monthly booking report CSV and writes it to the configured report directory.
+     *
+     * &lt;p&gt;The output directory is read from the {@code app.report.base-path} property,
+     * which is injected via environment variable {@code REPORT_BASE_PATH} at runtime.
+     * This ensures the path is valid inside Docker containers and cloud environments
+     * (czr-java-001).&lt;/p&gt;
+     *
+     * @param month month identifier (e.g. &quot;03&quot;)
+     * @param year  four-digit year (e.g. &quot;2024&quot;)
+     * @return map containing generation status and output file path
+     */
+    public Map&lt;String, Object&gt; generateMonthlyReport(String month, String year) {
+<span class="fc" id="L41">        String fileName = &quot;resort_report_&quot; + month + &quot;_&quot; + year + &quot;.csv&quot;;</span>
+<span class="fc" id="L42">        String fullPath = reportBasePath + fileName;</span>
+
+<span class="fc" id="L44">        Map&lt;String, Object&gt; result = new HashMap&lt;&gt;();</span>
+
+        try {
+<span class="fc" id="L47">            File reportDir = new File(reportBasePath);</span>
+<span class="fc bfc" id="L48" title="All 2 branches covered.">            if (!reportDir.exists()) {</span>
+<span class="fc" id="L49">                reportDir.mkdirs();</span>
+            }
+
+<span class="fc" id="L52">            try (FileWriter writer = new FileWriter(fullPath)) {</span>
+<span class="fc" id="L53">                writer.write(&quot;BookingID,GuestName,RoomType,CheckIn,CheckOut,Amount\n&quot;);</span>
+<span class="fc" id="L54">                writer.write(&quot;BK-001,John Smith,SUITE,2024-03-01,2024-03-05,1750.00\n&quot;);</span>
+<span class="fc" id="L55">                writer.write(&quot;BK-002,Jane Doe,DELUXE,2024-03-03,2024-03-07,960.00\n&quot;);</span>
+            }
+
+<span class="fc" id="L58">            result.put(&quot;status&quot;, &quot;generated&quot;);</span>
+<span class="fc" id="L59">            result.put(&quot;path&quot;, fullPath);</span>
+
+<span class="fc" id="L61">        } catch (IOException e) {</span>
+<span class="fc" id="L62">            result.put(&quot;status&quot;, &quot;error&quot;);</span>
+<span class="fc" id="L63">            result.put(&quot;message&quot;, e.getMessage());</span>
+<span class="fc" id="L64">        }</span>
+
+<span class="fc" id="L66">        return result;</span>
+    }
+
+    /**
+     * Builds a secure HTTPS download URL for the given report file name.
+     *
+     * &lt;p&gt;Uses HTTPS to comply with cloud security standards enforced by AWS ALB,
+     * WAF, and the Well-Architected Framework (cr-java-0088).
+     * The base URL is externalised via the {@code app.report.download-base-url}
+     * property so it can be overridden per environment without code changes.&lt;/p&gt;
+     *
+     * @param reportName file name of the report to download
+     * @return fully qualified HTTPS download URL
+     */
+    public String buildReportDownloadUrl(String reportName) {
+        // HTTPS enforced — plain HTTP is blocked by cloud security controls (cr-java-0088).
+<span class="fc" id="L82">        return &quot;https://reports.resorts-internal.com/download/&quot; + reportName;</span>
+    }
+
+    /**
+     * Returns runtime system information for diagnostics.
+     *
+     * &lt;p&gt;Uses {@link java.time.LocalDateTime} and {@link DateTimeFormatter} instead of
+     * the legacy {@code java.util.Date} + {@code SimpleDateFormat} (not thread-safe).&lt;/p&gt;
+     *
+     * @return map containing report path, timestamp, and other diagnostic values
+     */
+    public Map&lt;String, Object&gt; getSystemInfo() {
+<span class="fc" id="L94">        String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMATTER);</span>
+<span class="fc" id="L95">        Map&lt;String, Object&gt; info = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L96">        info.put(&quot;reportPath&quot;, reportBasePath);</span>
+<span class="fc" id="L97">        info.put(&quot;generatedAt&quot;, timestamp);</span>
+<span class="fc" id="L98">        return info;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.11.202310140853</span></div></body></html>
