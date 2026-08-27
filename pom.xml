@@ -18,7 +18,7 @@
     <artifactId>resortsLite</artifactId>
     <version>1.0.0</version>
     <name>ResortsLite</name>
-    <description>Resort booking demo — Java 17 / Spring Boot 3.2.x</description>
+    <description>Resort booking demo — Java 17 / Spring Boot 3.2.x / PostgreSQL 16</description>
 
     <properties>
         <!-- Updated from 1.8 to 17 for Java 17 target -->
@@ -37,6 +37,13 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
         </dependency>
+        <!-- PostgreSQL 16 JDBC driver — replaces H2 in-memory database -->
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>42.7.3</version>
+            <scope>runtime</scope>
+        </dependency>
         <!-- Updated log4j-core from 2.14.1 (CVE-2021-44228 Log4Shell) to 2.23.1 (secure) -->
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
@@ -48,11 +55,6 @@
             <groupId>commons-collections</groupId>
             <artifactId>commons-collections</artifactId>
             <version>3.2.2</version>
-        </dependency>
-        <dependency>
-            <groupId>com.h2database</groupId>
-            <artifactId>h2</artifactId>
-            <scope>runtime</scope>
         </dependency>
         <!-- Jakarta Servlet API for Spring Boot 3.x / Java 17 -->
         <dependency>
