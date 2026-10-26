@@ -19,9 +19,31 @@
 
     <properties>
         <java.version>1.8</java.version>
+        <aws.sdk.version>2.25.11</aws.sdk.version>
+        <jackson.version>2.15.2</jackson.version>
     </properties>
 
     <dependencies>
+        <!-- AWS SDK v2 S3 dependency for cloud object storage -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+            <version>${aws.sdk.version}</version>
+        </dependency>
+        <!-- AWS Secrets Manager SDK v2 for externalized credential management -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>secretsmanager</artifactId>
+            <version>${aws.sdk.version}</version>
+        </dependency>
+        <!-- cr-java-0090 FIX: Amazon Cognito Identity Provider SDK v2 for cloud-native
+             user identity management. Replaces file-based authentication / local user
+             stores with Amazon Cognito User Pool identity validation via AdminGetUser. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>cognitoidentityprovider</artifactId>
+            <version>${aws.sdk.version}</version>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -29,6 +51,20 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <!-- cr-java-0065 FIX: Spring Session Data Redis — stores HTTP session state in
+             Amazon ElastiCache for Redis instead of local JVM memory. Enables stateless
+             application instances, horizontal scaling, and zero data loss on failover. -->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+            <version>2.7.4</version>
+        </dependency>
+        <!-- cr-java-0065 FIX: Spring Boot Redis starter — provides RedisTemplate and
+             Lettuce connection pool for communicating with Amazon ElastiCache for Redis. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
         <!-- SECURITY VIOLATION: log4j 2.14.1 has critical CVE-2021-44228 (Log4Shell) -->
         <dependency>
