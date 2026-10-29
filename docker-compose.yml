@@ -1,0 +1,49 @@
+version: "3.8"
+
+services:
+  resortslite:
+    image: resortslite:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: resortslite-app
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - TZ=UTC
+      # Redis / ElastiCache connection (override with actual ElastiCache endpoint)
+      - SPRING_REDIS_HOST=${SPRING_REDIS_HOST:-localhost}
+      - SPRING_REDIS_PORT=${SPRING_REDIS_PORT:-6379}
+      - SPRING_REDIS_PASSWORD=${SPRING_REDIS_PASSWORD:-}
+      # Payment service endpoint
+      - PAYMENT_API_URL=${PAYMENT_API_URL:-http://payment-svc:9090/payments/charge}
+      # Internal service endpoints
+      - APP_PAYMENT_ENDPOINT=${APP_PAYMENT_ENDPOINT:-http://payment-svc.internal:9090/charge}
+      - APP_INVENTORY_ENDPOINT=${APP_INVENTORY_ENDPOINT:-http://inventory-svc.internal:8081/rooms}
+      - APP_NOTIFICATION_ENDPOINT=${APP_NOTIFICATION_ENDPOINT:-http://notify.internal:7070/send}
+      # File paths (override for persistent storage)
+      - APP_REPORT_BASE_PATH=${APP_REPORT_BASE_PATH:-/var/reports/}
+      - APP_BACKUP_PATH=${APP_BACKUP_PATH:-/var/backups/}
+      # JVM options
+      - JAVA_OPTS=-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0
+    volumes:
+      - reports-data:/var/reports
+      - backups-data:/var/backups
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  reports-data:
+  backups-data:
+
+networks:
+  app-network:
+    driver: bridge

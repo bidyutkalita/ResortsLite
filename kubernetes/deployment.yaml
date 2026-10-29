@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: resortslite
+  namespace: resortslite
+  labels:
+    app: resortslite
+    version: "1.0.0"
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: resortslite
+  template:
+    metadata:
+      labels:
+        app: resortslite
+        version: "1.0.0"
+    spec:
+      containers:
+        - name: resortslite
+          image: "{{IMAGE_URI}}"
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: "docker"
+            - name: TZ
+              value: "UTC"
+            - name: JAVA_OPTS
+              value: "-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -Djava.security.egd=file:/dev/./urandom"
+            # Redis / ElastiCache — inject via ConfigMap or Secret
+            - name: SPRING_REDIS_HOST
+              value: "{{SPRING_REDIS_HOST}}"
+            - name: SPRING_REDIS_PORT
+              value: "{{SPRING_REDIS_PORT}}"
+            - name: SPRING_REDIS_PASSWORD
+              value: "{{SPRING_REDIS_PASSWORD}}"
+            # Payment service endpoint
+            - name: PAYMENT_API_URL
+              value: "{{PAYMENT_API_URL}}"
+            # Internal service endpoints
+            - name: APP_PAYMENT_ENDPOINT
+              value: "{{APP_PAYMENT_ENDPOINT}}"
+            - name: APP_INVENTORY_ENDPOINT
+              value: "{{APP_INVENTORY_ENDPOINT}}"
+            - name: APP_NOTIFICATION_ENDPOINT
+              value: "{{APP_NOTIFICATION_ENDPOINT}}"
+            # File paths
+            - name: APP_REPORT_BASE_PATH
+              value: "/var/reports/"
+            - name: APP_BACKUP_PATH
+              value: "/var/backups/"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
+          volumeMounts:
+            - name: reports-volume
+              mountPath: /var/reports
+            - name: backups-volume
+              mountPath: /var/backups
+      volumes:
+        - name: reports-volume
+          emptyDir: {}
+        - name: backups-volume
+          emptyDir: {}
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      terminationGracePeriodSeconds: 30
