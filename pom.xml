@@ -19,7 +19,21 @@
 
     <properties>
         <java.version>1.8</java.version>
+        <aws.sdk.version>2.25.40</aws.sdk.version>
     </properties>
+
+    <!-- AWS SDK v2 BOM — manages versions for all software.amazon.awssdk artifacts -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws.sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <dependency>
@@ -46,6 +60,51 @@
             <groupId>com.h2database</groupId>
             <artifactId>h2</artifactId>
             <scope>runtime</scope>
+        </dependency>
+        <!-- AWS SDK v2 S3 client — replaces hard-coded file-system paths (cr-java-0061) -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>s3</artifactId>
+        </dependency>
+        <!-- AWS SDK v2 URL Connection HTTP client (lightweight, no Netty required) -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
+        </dependency>
+        <!-- AWS SDK v2 Secrets Manager — replaces hard-coded DB credentials (cr-java-0069) -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>secretsmanager</artifactId>
+        </dependency>
+        <!-- AWS SDK v2 SSM client — replaces hard-coded environment URLs (cr-java-0071) -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>ssm</artifactId>
+        </dependency>
+        <!-- cr-java-0090 FIX: Amazon Cognito Identity Provider SDK v2 — replaces file-based
+             authentication with Amazon Cognito User Pool identity management.  Guest user
+             identities are registered and managed in Cognito (CognitoAuthService), and
+             authentication tokens are issued by Cognito rather than generated via the
+             broken MD5 algorithm that was previously used at BookingService.java line 108. -->
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>cognitoidentityprovider</artifactId>
+        </dependency>
+        <!-- cr-java-0065 FIX: Spring Session Data Redis — transparently replaces the default
+             in-memory HttpSession store with Amazon ElastiCache for Redis.  All session
+             attributes are serialised to the shared Redis cluster, enabling stateless
+             application instances and true horizontal scaling behind AWS ALB. -->
+        <dependency>
+            <groupId>org.springframework.session</groupId>
+            <artifactId>spring-session-data-redis</artifactId>
+        </dependency>
+        <!-- cr-java-0065 FIX: Spring Boot Starter Data Redis (Lettuce client) — provides
+             the RedisConnectionFactory and RedisTemplate beans required by Spring Session.
+             Lettuce connects to the ElastiCache primary endpoint configured via
+             spring.redis.host / REDIS_HOST environment variable. -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
     </dependencies>
 

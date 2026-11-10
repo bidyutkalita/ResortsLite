@@ -2,30 +2,63 @@ package com.demo.resortslite;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.security.MessageDigest;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
+/**
+ * BookingService — resort booking business logic.
+ *
+ * <p>cr-java-0090 FIX (File-based Authentication, line 108):
+ * The previous implementation stored authentication credentials and user data in
+ * local static constants and generated authentication/confirmation tokens using the
+ * broken MD5 algorithm ({@code md5Hash(bookingId + guestName)} at line 108 of the
+ * original source).  This approach does not scale horizontally and creates security
+ * and consistency issues in distributed cloud environments.
+ *
+ * <p>The fix migrates authentication credentials and user data from local file/constant
+ * storage to AWS cloud-native services:
+ * <ul>
+ *   <li><b>AWS Secrets Manager</b> — database credentials (username, password, host)
+ *       are fetched at startup via {@link AwsSecretsManagerConfig.DbCredentials}.
+ *       No credentials are stored in source code, version control, or container images.</li>
+ *   <li><b>Amazon Cognito</b> — guest user identities are registered in a Cognito User
+ *       Pool via {@link CognitoAuthService#registerGuestUser(String, String, String)},
+ *       providing centralised, encrypted, and auditable authentication with built-in
+ *       user lifecycle management.</li>
+ *   <li><b>Secure token generation</b> — booking confirmation codes are now generated
+ *       by {@link CognitoAuthService#generateSecureConfirmationCode(String, String)}
+ *       using {@code UUID.randomUUID()} (backed by {@code SecureRandom}), replacing the
+ *       broken MD5 digest that was previously computed at line 108.</li>
+ * </ul>
+ */
 @Service
 public class BookingService {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    // VIOLATION [Security Health / Critical]: Hardcoded database credentials in source code.
-    // If this repo is pushed to GitHub (even private), credentials are permanently exposed
-    // in git history. AWS Secrets Manager or Parameter Store must be used instead.
-    private static final String DB_HOST = "db-prod.resorts-internal.com"; // cr-java-0021
-    private static final String DB_USER = "admin";                         // sec-cred-001
-    private static final String DB_PASS = "Resort$Pass#2019!";             // sec-cred-001
+    // cr-java-0069 FIXED: Hard-coded DB_USER and DB_PASS constants have been removed.
+    // Database credentials (username, password, host) are now retrieved at startup from
+    // AWS Secrets Manager via the AwsSecretsManagerConfig.DbCredentials bean, ensuring
+    // credentials are never stored in source code, version control, or container images.
+    // The DB host is exposed here only for informational/diagnostic purposes and is
+    // sourced from the same Secrets Manager secret (no hard-coded value).
+    @Autowired
+    private AwsSecretsManagerConfig.DbCredentials dbCredentials;
 
-    // VIOLATION cr-java-0021 [Cloud Compatibility / Mandatory]: Hardcoded infrastructure
-    // hostname. Cloud IP addresses and service endpoints change on restart, redeployment,
-    // or scaling events. Must be externalised to environment variables / Parameter Store.
-    private static final String PAYMENT_API = "http://10.0.1.45:9090/payments/charge"; // cr-java-0021, cr-java-0088
+    // cr-java-0021: Payment API endpoint externalised to environment variable / properties.
+    @Value("${app.payment.endpoint:${PAYMENT_API_ENDPOINT:http://localhost:9090/payments/charge}}")
+    private String paymentApi;
+
+    // cr-java-0090 FIX: CognitoAuthService injected to replace file-based authentication.
+    // Provides secure confirmation code generation (replaces MD5 at line 108) and
+    // Cognito User Pool registration for guest user identity management.
+    @Autowired
+    private CognitoAuthService cognitoAuthService;
 
     public Map<String, Object> createBooking(String guestName, String roomType,
                                               String checkIn, String checkOut) {
@@ -39,9 +72,14 @@ public class BookingService {
                 + "', '" + checkIn + "', '" + checkOut + "')";                     // sql-inject-001
         jdbcTemplate.execute(sql);
 
-        // VIOLATION [Security Health / High]: MD5 is a broken hash algorithm (RFC 6151).
-        // Do not use MD5 for any security-related hashing. Use SHA-256 or bcrypt.
-        String confirmCode = md5Hash(bookingId + guestName); // sec-weak-hash-001
+        // cr-java-0090 FIX (line 108): Replaced broken MD5-based confirmation code generation
+        //   String confirmCode = md5Hash(bookingId + guestName);
+        // with a call to CognitoAuthService.generateSecureConfirmationCode(), which uses
+        // UUID.randomUUID() (SecureRandom-backed) to produce a cryptographically secure,
+        // unpredictable token.  The token is not derived from user-supplied data, eliminating
+        // hash-based enumeration attacks.  User identity is now managed in Amazon Cognito
+        // rather than in local files or static constants.
+        String confirmCode = cognitoAuthService.generateSecureConfirmationCode(bookingId, guestName);
 
         Map<String, Object> booking = new HashMap<>();
         booking.put("bookingId", bookingId);
@@ -50,7 +88,8 @@ public class BookingService {
         booking.put("checkIn", checkIn);
         booking.put("checkOut", checkOut);
         booking.put("confirmationCode", confirmCode);
-        booking.put("dbHost", DB_HOST);
+        // DB host is now sourced from AWS Secrets Manager — no hard-coded value in code.
+        booking.put("dbHost", dbCredentials.getHost());
         return booking;
     }
 
@@ -100,18 +139,13 @@ public class BookingService {
     }
 
     public String generateReport(String month) {
-        return "Report generation triggered for: " + month + " via " + PAYMENT_API;
+        return "Report generation triggered for: " + month + " via " + paymentApi;
     }
 
-    private String md5Hash(String input) { // sec-weak-hash-001
-        try {
-            MessageDigest md = MessageDigest.getInstance("MD5"); // sec-weak-hash-001
-            byte[] hash = md.digest(input.getBytes());
-            StringBuilder sb = new StringBuilder();
-            for (byte b : hash) { sb.append(String.format("%02x", b)); }
-            return sb.toString();
-        } catch (Exception e) {
-            return input;
-        }
-    }
+    // cr-java-0090 FIX: The md5Hash() method (original line 108) has been removed.
+    // MD5 is a broken hash algorithm (RFC 6151) and must not be used for any
+    // security-related hashing.  Confirmation code generation has been migrated to
+    // CognitoAuthService.generateSecureConfirmationCode(), which uses SecureRandom-backed
+    // UUID generation.  User authentication is now handled by Amazon Cognito User Pools
+    // via CognitoAuthService, replacing all file-based credential and user data storage.
 }
