@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  resortslite:
+    image: resortslite:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: resortslite-app
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      # Redis / ElastiCache connection (provide actual values at runtime)
+      REDIS_HOST: ${REDIS_HOST:-localhost}
+      REDIS_PORT: ${REDIS_PORT:-6379}
+      SESSION_TIMEOUT_SECONDS: ${SESSION_TIMEOUT_SECONDS:-1800}
+      # File paths (override via environment or .env file)
+      REPORT_BASE_PATH: ${REPORT_BASE_PATH:-/var/reports}
+      BACKUP_PATH: ${BACKUP_PATH:-/var/backups/nightly}
+      # External service endpoints
+      PAYMENT_API_URL: ${PAYMENT_API_URL:-http://payment-service:9090/payments/charge}
+      # JVM options
+      JAVA_OPTS: "-Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0"
+    volumes:
+      - reports-data:/var/reports
+      - backups-data:/var/backups/nightly
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  reports-data:
+  backups-data:
+
+networks:
+  app-network:
+    driver: bridge
